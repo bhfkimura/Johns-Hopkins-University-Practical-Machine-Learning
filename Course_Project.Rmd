@@ -1,0 +1,145 @@
+---
+title: "Qualitative Activity Recognition of Weight Lifting Exercises by Using Random Forest Method"
+author: "Bruno"
+date: '`r Sys.Date()`'
+output: html_document
+bibliography: references.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+# Summary
+
+Human Activity Recognition (HAR) research has traditionally focused on discriminating between different activities, in other words, to predict the activity that was performed at a specific point in time. In this work, we investigate the Weight Lifting Exercises dataset and apply random forests for classifying the quality of a particular physical activity performed by the device wearer. We fitted a random forest model considering 70% of the training set, validated the model to the remaining 30% of the dataset, obtaining an accuracy of 0.9956, with a p-value equal to $2.2 \times 10^{-16}$ and a 95% confidence interval (0.9935, 0.9971). 
+
+# Overview 
+
+In [@HAR], the authors defined the quality of execution of weight-lifting exercises. They investigated three aspects that pertain to qualitative activity recognition: the problem of specifying correct execution, the automatic and robust detection of execution mistakes, and how to provide feedback on the quality of execution to the user. Six young, healthy participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: precisely according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied with the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience, and was made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg).
+
+
+In this work, the following package were used:
+
+```{r}
+library(caret)
+```
+
+
+# Importing data
+
+The Weight Lifting Exercises (WLE) dataset and further details can be found in 
+
+[http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har) 
+
+The training data for this project are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+Let us import the training and the testing dataset. If any of the files *training.csv* or *testing.csv* do not exist, we download it, and later we import it by using the read.csv() function.
+
+```{r Import data, cache = TRUE}
+## Importing data
+URL1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+URL2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if(!file.exists("training.csv"))
+    download.file(url = URL1, destfile = "./training.csv")
+
+if (!file.exists("testing.csv"))
+    download.file(url = URL2, destfile = "./testing.csv")
+
+training <- read.csv(file = "training.csv")
+testing <- read.csv(file = "testing.csv")
+
+# Data information 
+# http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+
+```
+
+The variables in the training WLE dataset are shown below.
+
+```{r Data}
+str(training)
+```
+
+
+# Data cleaning
+
+We convert the data according to their appropriate classes.
+
+```{r Data cleaning}
+## Data processing
+training$classe <- factor(training$classe)
+training$cvtd_timestamp <- as.POSIXct(training$cvtd_timestamp, format = "%d/%m/%Y %H:%M")
+for (i in 8:159)
+    training[, i] <- as.numeric(training[, i])
+```
+
+Note that the columns that contain missing values (NAs) correspond to variables that were not directly measured since they are related to means, standard deviations, etc. Therefore, let us remove these columns and use the remaining variables to build or model.
+
+```{r Data cleaning 2}
+variables <- rep(x = FALSE, times = 7)
+for (i in 8:160)
+    variables <- c(variables, sum(is.na(training[, i])) == 0)
+
+training <- training[, variables] 
+```
+
+The remaining variables and the cleaned training data are summarized below.
+
+```{r Clean data}
+str(training)  
+```
+
+
+# Cross-validation
+
+Since the test data does not contain the classification for each exercise, we decided to use cross-validation to evaluate our model before applying it to the testing set. We partitioned the training set so that we fit our model using 70% of the training set and tested the model in the remaining 30%.
+
+```{r Cross-Validation}
+set.seed(2023)
+
+inTrain <- createDataPartition(y = training$classe, p = 0.7, list = FALSE)
+training_split <- training[inTrain,]
+validation <- training[-inTrain,]
+
+dim(training_split)
+dim(validation)
+```
+
+After fitting our data considering the random forest method, the resulting model applied to the validation data produced the following confusion matrix.
+
+```{r Fitting model, cache = TRUE}
+fit <- train(classe ~ ., data = training_split, method = "rf")
+confusionMatrix(predict(fit, validation), validation$classe)
+```
+
+
+
+# Prediction
+
+In order to make predictions from the testing set, let us fit the random forest models considering the whole training set. 
+
+```{r Fitting final model, cache = TRUE}
+fitFinal <- train(classe ~ ., data = training, method = "rf")
+```
+
+The predictions applied to the testing set result in the following prediction for the classification of the exercises:
+
+```{r Prediction}
+Class <- predict(fitFinal, testing)
+
+data.frame(Class = Class)
+```
+
+# Conclusion
+ We processed the WLE dataset, selected only the relevant variables (with no missing values), and fitted a random forest model considering 70% of the training set. We validated our model, applying it to the remaining 30% of the dataset, obtaining an accuracy of 0.9956, with a p-value equal to $2.2 \times 10^{-16}$ and a 95% confidence interval (0.9935, 0.9971). 
+
+# Bibliography
